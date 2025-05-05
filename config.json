@@ -1,7 +1,7 @@
 {
     "arcgis_url": "https://gis.czu.cz/portal/",
-    "username": "Scripter1",
-    "password": "CZUScripter123",
+    "username": "xxxx",
+    "password": "xxxx",
     
 	"debug": "full",
     "_comment_debug": "Controls logging level: 'none' (default), 'basic' (more info in ArcGIS Pro), or 'full' (detailed logs saved to file + saved storymap json)",
