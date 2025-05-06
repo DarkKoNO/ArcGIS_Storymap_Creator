@@ -1,7 +1,7 @@
 # ArcGIS_Storymap_Creator
-Converts a DOCX document to a storymap.
+## Converts a DOCX document to a storymap.
 
-The easiest way is to download the whole ArcGIS Pro project folder (Storymap_creator_publish). Tested in ArcGIS Pro 3.4.3. (You can see script and config file code directly in the root folder, but they are also included in the project folder /_data/)
+The easiest way is to download the whole ArcGIS Pro project folder (Storymap_creator_publish). Tested in ArcGIS Pro 3.4.3. (You can see the script and config file code directly in the root folder, but they are also included in the project folder /_data/)
 
 After opening the project, you can find the script ready to use in the project toolbox.
 
@@ -9,9 +9,18 @@ You need to fill out the connection to the server - URL, username, and password.
 
 There are also two DOCX files in /_data/ folder that were used as tests.
 
-Supported things in DOCX
 
-Basic formatting that is also in Storymap - Bold, Italic, Subscript, Superscript, crossed, font color, plus underlined, which is not in Storymap but can actually be added. Font color match directly from DOCX - not theme colors.
+## Limitationv of character coding
+There is a problem with character sets and coding in publishing a storymap directly through API functions. That's why the script first creates a storymap with placeholders, then downloads JSON, replaces all text, and then uploads JSON back. 
+
+This circumvents the coding problem and allows, for example, Japanese characters in DOCX text when working in Windows that has Czech Windows-1250 coding as default.
+
+It doesn't do this circumvention for name, summary, and description, which are supplied as ArcGIS Pro toolbox parameters - if you are using weird characters there, that don't match your Windows, it may output an error.
+ 
+## Supported things in DOCX
+You can look at the testing DOCX files in the project /_data/ folder.
+
+Basic formatting that is also in Storymap - Bold, Italic, Subscript, Superscript, crossed, font color, align, plus underlined, which is not in Storymap but can actually be added. Font color match directly from DOCX - not theme colors.
 
 All storymaps paragraph types - normal, heading 1-3, quote (matches to word style "quote"), code (matches to word style code - also tries to match language of code automatically, but best to check)
 
