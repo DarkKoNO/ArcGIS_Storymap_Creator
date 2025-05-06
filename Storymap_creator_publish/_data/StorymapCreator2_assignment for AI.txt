@@ -1,0 +1,550 @@
+Script algorithm
+    Script must use only libarires available in arcgis pro python deployment. There definetly are beautifulsoup for html, and combinationn of zipfile, etree and tempfile for docx 
+    Script must use arcgis api for python version 2.4 - link to documentation for storymap here https://developers.arcgis.com/python/latest/api-reference/arcgis.apps.storymap.html#arcgis.apps.storymap.story_content.Image
+    Careful there are changes from older versions and AI likes to use decaprated functions.
+   Load config file and parameters as follows:
+        content_file = arcpy.GetParameterAsText(0) # file to be parsed
+        storymap_title = arcpy.GetParameterAsText(1) # title of portal item and main heading of storymap
+        storymap_tags = arcpy.GetParameterAsText(2) # Optional - portal item tags
+        storymap_summary = arcpy.GetParameterAsText(3) # Optional - portal item summary and storymap main subtitle
+        storymap_description = arcpy.GetParameterAsText(4) # Optional - portal item description and added as first text block of storymap
+        storymap_cover_image = arcpy.GetParameterAsText(5) # Story map cover image
+        config_path = arcpy.GetParameterAsText(6) # path to config.json  - takes precedence over following
+        username = arcpy.GetParameterAsText(7) # if you dont have config json username 
+        password = arcpy.GetParameterAsText(8) # if you dont have config json password
+        arcgis_url = arcpy.GetParameterAsText(9) # if you dont have config json URL of server
+
+    Config file has following structure
+        {
+            "arcgis_url": "https://www.arcgis.com",
+            "username": "Scripter1",
+            "password": "CZUScripter123"
+        }
+   
+   Load and provided html or docx file - two functions based on type of file
+   Content of file should be parsed to later be used by ArcGIS Storymap - it should be separated into following types of content - Image, Text, Separator, Code, Table (these interest us) - as in documentation of Add - Storymap arcgis python function:
+   
+        add(content: Image | Video | Audio | Separator | Embed | Map | Button | Text | Gallery | Timeline | Sidecar | Code | Table | None = None, caption: str | None = None, alt_text: str | None = None, display: str = None, position: int | None = None)
+        
+        Create separate function for handling each item - actually two - one when getting data from html and one from docx
+        Text further has subtypes called sytles - as is in arcgis python documentation of text:
+            class arcgis.apps.storymap.story_content.Text(text: str | None = None, style: TextStyles = TextStyles.PARAGRAPH, color: str = None, size: str = None, **kwargs)
+            
+            Example of usage of styles is: Text(text="foo", style=TextStyles.HEADING)
+
+            Styles of text are as follows: 
+                BULLETLIST = 'bullet-list'
+                HEADING = 'h2'
+                HEADING1 = 'h2'
+                HEADING2 = 'h3'
+                HEADING3 = 'h4'
+                LARGEPARAGRAPH = 'large-paragraph'
+                NUMBERLIST = 'numbered-list'
+                PARAGRAPH = 'paragraph'
+                QUOTE = 'quote'
+                SUBHEADING = 'h3'
+            And they have these parameters:
+                paragraph - String can contain the following tags for text formatting: <strong>, <em>, <a href="{link}" rel="noopener noreferer" target="_blank" and a class attribute to indicate color formatting: class=sm-text-color-{values} attribute in the <strong> | <em> | <a> | <span> tags       
+                    Values: themeColor1 | themeColor2 | themeColor3 | customTextColors
+
+                heading - String can only contain <em> tag
+
+                subheading - String can only contain <em> tag
+
+                bullet-list - String can contain the following tags for text formatting: <strong>, <em>, <a href="{link}" rel="noopener noreferer" target="_blank" and a class attribute to indicate color formatting: class=sm-text-color-{values} attribute in the <strong> | <em> | <a> | <span> tags
+                    Values: themeColor1 | themeColor2 | themeColor3 | customTextColors
+
+                numbered-list - String can contain the following tags for text formatting: <strong>, <em>, <a href="{link}" rel="noopener noreferer" target="_blank" and a class attribute to indicate color formatting: class=sm-text-color-{values} attribute in the <strong> | <em> | <a> | <span> tags
+                    Values: themeColor1 | themeColor2 | themeColor3 | customTextColors
+
+                quote - String can only contain <strong> and <em> tags
+            Which is important, because we need to maintain formating in text, so we have to replace formating from docx document with appropriate allowed tags.
+    After parsing and preparation of content we need to have function that creates storymap
+        Function has to create new storymap 
+        name it and fill out portal item information of name, summary, description and author (name of person who has logged in taken from portal). 
+        Fill out storymap basic information - title (name), subtitle (sumnary), by_line(author) - using storymap cover function:  cover(title: str | None = None, type: str = None, summary: str | None = None, by_line: str | None = None, image: Image | None = None)
+            (type should be string "sidebyside")
+        First block of text should also be created and filled out by description.
+        Then all content based on parsed file should be added, but values for text, code and table should not be filled out, only placeholders added. Images and separators can be added now without using placeholders. Content structure should be in correct order according to original document. 
+        This is because adding content like this has problem with encoding. It uses always encoding of system instead of UTF8 which may lead to errors. So we prepare structure with placeholders. Save storymap and then in next step we will use api to get json back, replace text placeholders with text and reupload json back. 
+        Definition of image in python for arcgis is as follows:
+            class arcgis.apps.storymap.story_content.Image(path: str | None = None, **kwargs)
+            where path is Required String. The file path or url to the image that will be added.
+            property display - Get/Set display for image. Values: small | wide | full | float - should be added based on how image is in original document
+        Saving storymap
+        
+    After saving storymap with metadata and placeholders we have to download json using arcgis enterprise api, replace placeholders with original content and reupload it back. We need to reupload as storymap data json and as draft of storymap which is json in attached resources.
+        For resources we need to use special function, for example to find draft we need to use -  resources = storymap_item.resources.list() or to get it storymap_item.resources.get(draft_file_name)
+        since main data json and draft json are identical, we need to replace data just once. 
+        Lets make two separate functions here one for handling loading and uploading files and other stuff, and the other will handle Preparing (replacing) placeholder of json.
+    
+    At the end script should return url to storymap - it should be to editation and it is different base on whether it is on arcgis.com or other serveer
+        for arcgis com it is https://storymaps.arcgis.com/stories/{storymap_item.id}/edit
+        For other server it is https://gis.czu.cz/portal/apps/storymaps/stories/{storymap_item.id}/edit
+
+## IMPLEMENTATION DETAILS
+
+### 1. JSON Structure for StoryMap Content
+When creating and updating the StoryMap, we need to follow these specific JSON structures:
+
+#### 1.1 Text Block JSON Structure
+```json
+{
+    "type": "text",
+    "data": {
+        "type": "paragraph|bullet-list|numbered-list|quote|h2|h3|h4",
+        "text": "Content with <allowed><formatting>tags</formatting></allowed>"
+    }
+}
+```
+
+#### 1.2 Image Block JSON Structure
+```json
+{
+    "type": "image",
+    "data": {
+        "image": "r-af7Yn9"  // Reference ID to the image resource
+    },
+    "config": {
+        "size": "float|small|wide|full",
+        "floatAlignment": "end|start"  // "end" for right, "start" for left
+    }
+}
+```
+
+#### 1.3 Table Block JSON Structure
+```json
+{
+    "type": "table",
+    "data": {
+        "numRows": 2,
+        "numColumns": 3,
+        "cells": {
+            "0": {
+                "0": {
+                    "value": "<strong>Table1.1</strong>"
+                },
+                "1": {
+                    "value": "<strong>Table1.2</strong>"
+                },
+                "2": {
+                    "value": "<strong>Table1.3</strong>"
+                }
+            },
+            "1": {
+                "0": {
+                    "value": "<strong>Table2.1</strong>"
+                },
+                "1": {
+                    "value": "<strong>Table2.2</strong>"
+                },
+                "2": {
+                    "value": "<strong>Table2.3</strong>"
+                }
+            }
+        }
+    },
+    "config": {
+        "size": "full"
+    }
+}
+```
+Note: Table cells can contain formatting tags similar to paragraph text: `<strong>`, `<em>`, `<a>`, and `<span>` with color formatting.
+
+#### 1.4 Code Block JSON Structure
+```json
+{
+    "type": "code",
+    "data": {
+        "content": "Code box"
+    }
+}
+```
+Note: Use this type of content when a Word document has a style named "code" or when HTML contains `<pre>` or `<code>` elements.
+
+#### 1.5 Nested List JSON Structure
+```json
+{
+    "type": "text",
+    "data": {
+        "type": "bullet-list",
+        "text": "<li>First item<ul><li>Nested item</li></ul></li><li>Second item</li>"
+    }
+}
+```
+
+### 2. Parsing Functions Implementation
+
+#### 2.1 HTML Parsing
+- Create a function `parse_html(file_path)` that:
+  - Uses BeautifulSoup to parse the HTML file
+  - Processes elements in order to maintain document structure
+  - Extracts text with appropriate formatting based on allowed tags
+  - Handles images, tables, lists, and other elements
+  - Returns a list of content blocks in the correct order
+
+##### 2.1.1 HTML Element Processing
+- For headings (`<h1>` to `<h6>`): Convert to appropriate heading level (h2, h3, h4)
+- For paragraphs (`<p>`): 
+  - Check for blockquote styling
+  - Preserve allowed formatting tags
+  - Extract alignment information
+- For lists (`<ul>`, `<ol>`): 
+  - Process as bullet-list or numbered-list
+  - Handle nested lists with proper HTML structure
+- For images (`<img>`): 
+  - Extract src, alt text, and determine display properties
+  - Handle both remote and local images
+- For tables (`<table>`): 
+  - Extract rows and cells with formatting
+  - Create proper table JSON structure
+- For code blocks (`<pre>`, `<code>`): Extract as code blocks
+- For horizontal rules (`<hr>`): Create separator blocks
+
+#### 2.2 DOCX Parsing
+- Create a function `parse_docx(file_path)` that:
+  - Extracts the DOCX file to a temporary directory
+  - Maps relationships to find embedded images
+  - Processes paragraphs, tables, and other elements in order
+  - Extracts text with appropriate formatting
+  - Handles images and determines their display properties
+  - Returns a list of content blocks in the correct order
+
+##### 2.2.1 DOCX Element Processing
+- For paragraphs: 
+  - Check paragraph style to identify headings, code blocks, etc.
+  - Extract formatting (bold, italic, underline) and convert to HTML tags
+  - Determine alignment and indentation
+- For tables: 
+  - Extract rows and cells with formatting
+  - Create proper table JSON structure with numRows, numColumns, and cells
+- For images: 
+  - Extract from drawing elements
+  - Map relationship IDs to actual image files
+  - Determine display properties based on size and position
+- For lists: 
+  - Identify list items using numPr elements
+  - Determine list type (ordered vs. unordered)
+  - Handle nested lists
+
+#### 2.3 Image Handling
+- For images, determine the display property:
+  - If image spans whole row: `size="wide"`
+  - If image is small: `size="small"`
+  - If image is embedded in text: `size="float"`
+  - For float images, set alignment:
+    - Right: `"floatAlignment": "end"`
+    - Left: `"floatAlignment": "start"`
+    - Default to right if position cannot be determined
+
+#### 2.4 Table Handling
+- Extract table structure with rows and columns
+- Preserve formatting in cell content
+- Create proper JSON structure with numRows, numColumns, and nested cells objects
+- Set appropriate size (typically "full" for most tables)
+
+### 3. StoryMap Creation and Update
+
+#### 3.1 Create StoryMap with Placeholders
+- Create a function `create_storymap(...)` that:
+  - Creates a new StoryMap
+  - Sets metadata (title, tags, summary, description)
+  - Configures the cover with title, summary, and image
+  - Adds content blocks with placeholders for text, code, and tables
+  - Adds actual content for images and separators
+  - Saves the StoryMap
+  - Returns the StoryMap item, placeholder IDs, and parsed blocks
+
+#### 3.2 Update StoryMap with Actual Content
+- Create a function `update_storymap_json(...)` that:
+  - Downloads the StoryMap JSON
+  - Replaces placeholders with actual content
+  - Updates both the main data JSON and the draft JSON
+  - Re-uploads both JSON files
+
+### 4. Error Handling and Logging
+- Implement robust error handling for:
+  - Authentication failures
+  - File parsing issues
+  - API communication errors
+- Use `arcpy.AddMessage()` and `arcpy.AddError()` for user feedback
+- Log important steps and progress
+
+### 5. Main Script Flow
+1. Get credentials from config file or parameters
+2. Connect to ArcGIS portal
+3. Parse input file (HTML or DOCX)
+4. Create StoryMap with placeholders
+5. Update StoryMap with actual content
+6. Display success message with StoryMap URL
+
+
+
+
+
+# StoryMap Creator Script Structure
+
+## 1. Main Functions Overview
+
+```python
+def main():
+    """Main function that orchestrates the entire process."""
+    # Get parameters from ArcGIS Pro
+    # Load credentials
+    # Connect to ArcGIS portal
+    # Parse input file
+    # Create StoryMap with placeholders
+    # Update StoryMap with actual content
+    # Display success message with URLs
+```
+
+## 2. Configuration and Authentication Functions
+
+```python
+def get_credentials(config_path=None, username=None, password=None, arcgis_url=None):
+    """Retrieve credentials from config file or ArcGIS Pro parameters."""
+    # Load config file if provided
+    # Use direct parameters if no config or as fallback
+    # Return credentials dictionary
+    
+def load_config(config_path):
+    """Load credentials from a config.json file."""
+    # Open and parse JSON file
+    # Return config dictionary or None if error
+    
+def connect_to_portal(credentials):
+    """Connect to ArcGIS portal using provided credentials."""
+    # Create GIS connection
+    # Verify authentication
+    # Return GIS object
+```
+
+## 3. Content Parsing Functions
+
+```python
+def parse_content_file(file_path):
+    """Parse content file based on its extension."""
+    # Determine file type (HTML or DOCX)
+    # Call appropriate parsing function
+    # Return parsed blocks
+    
+def parse_html(file_path):
+    """Parse HTML file and extract content blocks."""
+    # Use BeautifulSoup to parse HTML
+    # Process elements in order
+    # Return list of content blocks
+    
+def parse_docx(file_path):
+    """Parse DOCX file and extract content blocks."""
+    # Extract DOCX to temp directory
+    # Parse document.xml and relationships
+    # Process elements in order
+    # Return list of content blocks
+```
+
+## 4. HTML Element Processing Functions
+
+```python
+def process_html_element(element, blocks, temp_dir):
+    """Process a single HTML element and add appropriate blocks."""
+    # Identify element type
+    # Call appropriate handler function
+    # Add resulting block to blocks list
+    
+def process_html_heading(element):
+    """Process HTML heading element."""
+    # Extract level and text
+    # Create heading block
+    
+def process_html_paragraph(element):
+    """Process HTML paragraph element."""
+    # Check for blockquote styling
+    # Extract text with formatting
+    # Create text block
+    
+def process_html_list(element):
+    """Process HTML list element."""
+    # Determine list type (ordered/unordered)
+    # Process list items with nested lists
+    # Create list block
+    
+def process_html_image(element, temp_dir):
+    """Process HTML image element."""
+    # Extract src, alt text
+    # Handle remote/local/base64 images
+    # Determine display properties
+    # Create image block
+    
+def process_html_table(element):
+    """Process HTML table element."""
+    # Extract rows and cells
+    # Preserve formatting in cells
+    # Create table block
+    
+def process_html_code(element):
+    """Process HTML code element."""
+    # Extract code text
+    # Create code block
+```
+
+## 5. DOCX Element Processing Functions
+
+```python
+def process_docx_body(body, blocks, namespaces, image_rels, media_files):
+    """Process the body of a DOCX document."""
+    # Iterate through body elements
+    # Identify element types
+    # Call appropriate handler functions
+    # Add resulting blocks to blocks list
+    
+def process_docx_paragraph(paragraph, namespaces, image_rels, media_files):
+    """Process a DOCX paragraph element."""
+    # Check paragraph style
+    # Handle headings, normal paragraphs, lists, code blocks
+    # Extract formatting
+    # Return appropriate block
+    
+def process_docx_table(table, namespaces):
+    """Process a DOCX table element."""
+    # Extract rows and cells
+    # Preserve formatting in cells
+    # Create table block
+    
+def process_docx_image(drawing, namespaces, image_rels, media_files):
+    """Process a DOCX image element."""
+    # Extract image relationship
+    # Map to actual image file
+    # Determine display properties
+    # Create image block
+    
+def extract_formatted_text(element, namespaces):
+    """Extract text with formatting from a DOCX element."""
+    # Process runs and formatting properties
+    # Convert DOCX formatting to HTML tags
+    # Return formatted text
+```
+
+## 6. StoryMap Creation and Update Functions
+
+```python
+def create_storymap(gis, title, tags=None, summary=None, description=None, cover_image=None, by_line=None, author=None, content_blocks=None):
+    """Create a StoryMap with placeholders."""
+    # Create new StoryMap
+    # Set metadata
+    # Configure cover
+    # Add content blocks with placeholders
+    # Save StoryMap
+    # Return StoryMap item, placeholder IDs, and blocks
+    
+def update_storymap_json(storymap_item, placeholder_ids, content_blocks):
+    """Update StoryMap JSON with actual content."""
+    # Download StoryMap JSON
+    # Replace placeholders with actual content
+    # Update main data JSON
+    # Find and update draft JSON
+    # Return success status
+```
+
+## 7. Helper Functions
+
+```python
+def create_text_block(text_type, text_content, alignment=None):
+    """Create a text block with the specified type and content."""
+    # Format text according to allowed tags for the type
+    # Create and return block structure
+    
+def create_image_block(image_path, caption=None, display=None, float_alignment=None):
+    """Create an image block with the specified properties."""
+    # Determine display if not provided
+    # Create and return block structure
+    
+def create_table_block(rows):
+    """Create a table block from the provided rows."""
+    # Format cells with proper structure
+    # Create and return block structure
+    
+def create_code_block(code_content):
+    """Create a code block with the specified content."""
+    # Create and return block structure
+    
+def create_separator_block():
+    """Create a separator block."""
+    # Create and return block structure
+    
+def sanitize_html(html, allowed_tags):
+    """Sanitize HTML to only include allowed tags."""
+    # Remove disallowed tags
+    # Keep allowed formatting
+    # Return sanitized HTML
+```
+
+## 8. Error Handling and Logging Functions
+
+```python
+def log_message(message, level="INFO"):
+    """Log a message with the specified level."""
+    # Use arcpy.AddMessage or arcpy.AddError based on level
+    
+def handle_error(error, context=None):
+    """Handle an error with appropriate logging and actions."""
+    # Log error with context
+    # Determine if process should continue or abort
+    # Return appropriate status
+```
+
+## 9. Main Script Flow
+
+```python
+if __name__ == "__main__":
+    try:
+        # Get parameters from ArcGIS Pro
+        content_file = arcpy.GetParameterAsText(0)
+        storymap_title = arcpy.GetParameterAsText(1)
+        storymap_tags = arcpy.GetParameterAsText(2)
+        storymap_summary = arcpy.GetParameterAsText(3)
+        storymap_description = arcpy.GetParameterAsText(4)
+        cover_image = arcpy.GetParameterAsText(5)
+        config_path = arcpy.GetParameterAsText(6)
+        username = arcpy.GetParameterAsText(7)
+        password = arcpy.GetParameterAsText(8)
+        arcgis_url = arcpy.GetParameterAsText(9)
+        
+        # Execute main function
+        main()
+        
+    except Exception as e:
+        arcpy.AddError(f"An error occurred: {e}")
+```
+
+## 10. Function Dependencies and Flow
+
+1. `main()` calls:
+   - `get_credentials()`
+   - `connect_to_portal()`
+   - `parse_content_file()`
+   - `create_storymap()`
+   - `update_storymap_json()`
+
+2. `parse_content_file()` calls either:
+   - `parse_html()` or
+   - `parse_docx()`
+
+3. `parse_html()` calls:
+   - `process_html_element()` for each element, which calls appropriate element-specific functions
+
+4. `parse_docx()` calls:
+   - `process_docx_body()`, which calls appropriate element-specific functions
+
+5. `create_storymap()` calls helper functions to create placeholder blocks:
+   - `create_text_block()`
+   - `create_image_block()`
+   - `create_table_block()`
+   - `create_code_block()`
+   - `create_separator_block()`
+
+6. `update_storymap_json()` replaces placeholders with actual content from parsed blocks
+
+This structure provides a clean separation of concerns, with each function having a specific responsibility, making the code more maintainable and easier to debug.
+
+
+
