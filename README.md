@@ -10,7 +10,7 @@ You need to fill out the connection to the server - URL, username, and password.
 There are also two DOCX files in /_data/ folder that were used as tests.
 
 
-## Limitationv of character coding
+## Limitation of character coding
 There is a problem with character sets and coding in publishing a storymap directly through API functions. That's why the script first creates a storymap with placeholders, then downloads JSON, replaces all text, and then uploads JSON back. 
 
 This circumvents the coding problem and allows, for example, Japanese characters in DOCX text when working in Windows that has Czech Windows-1250 coding as default.
